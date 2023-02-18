@@ -18,10 +18,21 @@ const sortBtns = document.getElementsByName("sort");
 const categoryBtns = document.getElementById("filter-btns");
 const title = document.querySelector("main > h1");
 
-let isLoading = true;
-let isError = false;
-let forumData = null;
-let categories = new Map();
+const [DEFAULT, ASC, DESC] = [0, 1, 2];
+const app = {
+  topics: [],
+  users: [],
+  categories: new Map(),
+  filters: {
+    category: DEFAULT,
+    order: {
+      by: DEFAULT,
+      in: DEFAULT,
+    },
+  },
+  isLoading: true,
+  isError: false,
+};
 
 // MAIN
 document.addEventListener("DOMContentLoaded", () => {
@@ -37,35 +48,32 @@ document.addEventListener("DOMContentLoaded", () => {
       return response.json();
     })
     .then((data) => {
-      forumData = data;
+      parseForumData(data);
       displayPostList();
       displayCategories();
       displayFooter();
       activateSortBtns();
     })
     .catch((error) => {
-      isError = true;
+      app.isError = true;
       console.log(error);
     })
     .finally(() => {
-      isLoading = false;
+      app.isLoading = false;
     });
 });
 
 // AUXILIARY FUNCTIONS
 function displayPostList() {
-  forumData["topic_list"].topics
-    .filter((post) => post["category_id"] in supportedTopicCategories)
-    .forEach(displayPost);
+  app.topics.forEach(displayPost);
 
   function displayPost(post) {
     const category = supportedTopicCategories[post["category_id"]];
     const posters = post.posters.map(({ user_id: userId }) => userId);
-    const users = forumData["users"];
 
     let postersAvatars = "";
     const displayPosterAvatar = (posterId) => {
-      const poster = users.find((user) => user.id == posterId);
+      const poster = app.users.find((user) => user.id == posterId);
       const avatarTemplate = poster["avatar_template"].replace("{size}", "25");
       const posterAvatar = avatarTemplate.startsWith("/")
         ? `${FORUM_AVATARS}/${avatarTemplate}`
@@ -126,17 +134,8 @@ function displayPostList() {
 }
 
 function displayCategories() {
-  // get categories and their counts
-  forumData.topic_list.topics.forEach((topic) => {
-    if (categories.has(topic.category_id)) {
-      categories.set(topic.category_id, categories.get(topic.category_id) + 1);
-      // make sure it only adds those categories we support
-    } else if (topic.category_id in supportedTopicCategories) {
-      categories.set(topic.category_id, 1);
-    }
-  });
   // create the buttons
-  categories.forEach((value, key) => {
+  app.categories.forEach((value, key) => {
     categoryBtns.innerHTML += `
     <button
          name="filter-button" 
@@ -164,7 +163,7 @@ function activateSortBtns() {
 function setLoadingState() {
   // let's make sure this code does not execute
   // when the state is not set to isLoading = true
-  if (!isLoading) return;
+  if (!app.isLoading) return;
 
   let titleText = "Loading";
   let titleUpdateInterval = null;
@@ -174,9 +173,9 @@ function setLoadingState() {
   titleUpdateInterval = setInterval(updateTitle, 150);
 
   function updateTitle() {
-    if (!isLoading || isError) {
+    if (!app.isLoading || app.isError) {
       // display appropriate title
-      if (isError) {
+      if (app.isError) {
         title.innerHTML = "Something went wrong :(";
       } else {
         title.innerHTML = "Latest topics";
@@ -195,4 +194,29 @@ function setLoadingState() {
 
     title.innerHTML = titleText + dots.join("");
   }
+}
+
+function parseForumData(data) {
+  app.topics = data.topic_list.topics.filter(
+    (post) => post["category_id"] in supportedTopicCategories
+  );
+
+  app.users = data.users;
+
+  app.topics.forEach((topic) => {
+    if (app.categories.has(topic.category_id)) {
+      app.categories.set(
+        topic.category_id,
+        app.categories.get(topic.category_id) + 1
+      );
+      // make sure it only adds those categories we support
+    } else if (topic.category_id in supportedTopicCategories) {
+      app.categories.set(topic.category_id, 1);
+    }
+  });
+}
+
+function handleFilterClick(event) {
+  // when users clicks on the same filter button again
+  // the filter is therefore cancelled
 }
