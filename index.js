@@ -18,16 +18,21 @@ const sortBtns = document.getElementsByName("sort");
 const categoryBtns = document.getElementById("filter-btns");
 const title = document.querySelector("main > h1");
 
-const [DEFAULT, ASC, DESC] = [0, 1, 2];
+const SORT_BY_DEFAULT = "bumped_at";
+const SORT_DIR_ASC = 1;
+const SORT_DIR_DESC = 2;
+const DEFAULT = null;
+
 const app = {
   topics: [],
   users: [],
+  displayedTopics: [],
   categories: new Map(),
   filters: {
     category: DEFAULT,
     order: {
-      by: DEFAULT,
-      in: DEFAULT,
+      by: SORT_BY_DEFAULT,
+      dir: SORT_DIR_ASC,
     },
   },
   isLoading: true,
@@ -49,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
     })
     .then((data) => {
       parseForumData(data);
-      displayPostList();
+      displayTopics();
       displayCategories();
       displayFooter();
       activateSortBtns();
@@ -64,12 +69,66 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // AUXILIARY FUNCTIONS
-function displayPostList() {
-  app.topics.forEach(displayPost);
+function displayTopics(prevFilters = null) {
+  // filter and sort topics
+  let nextDisplayedTopics = [...app.displayedTopics];
 
-  function displayPost(post) {
-    const category = supportedTopicCategories[post["category_id"]];
-    const posters = post.posters.map(({ user_id: userId }) => userId);
+  // FILTER
+  if (app.filters.category === DEFAULT) {
+    // default view
+    nextDisplayedTopics = [...app.topics];
+  } else if (prevFilters && prevFilters.category !== app.filters.category) {
+    // when category filter has been changed
+    nextDisplayedTopics = [...app.topics].filter(
+      (topic) => topic.category_id === app.filters.category
+    );
+  }
+
+  // SORT
+  if (app.filters.order.dir === SORT_DIR_ASC) {
+    nextDisplayedTopics.sort((a, b) => compareTopics(a, b));
+  } else if (app.filters.order.dir === SORT_DIR_DESC) {
+    nextDisplayedTopics.sort((a, b) => compareTopics(b, a));
+  }
+
+  // REMOVE
+  while (postsContainer.firstChild) {
+    postsContainer.firstChild.remove();
+  }
+
+  // POPULATE
+  app.displayedTopics = nextDisplayedTopics;
+  app.displayedTopics.map(getTopicElement).forEach(displayTopic);
+
+  function compareTopics(topicA, topicB) {
+    let prop = app.filters.order.by;
+    let a, b;
+    switch (prop) {
+      case "posts_count":
+        a = topicA[prop] - 1;
+        b = topicB[prop] - 1;
+        break;
+      case "bumped_at":
+        // swap a with b as we want to sort by activity
+        // from the newest to the oldest
+        a = new Date(topicB[prop]);
+        b = new Date(topicA[prop]);
+        break;
+      default:
+        a = topicA[prop];
+        b = topicB[prop];
+        break;
+    }
+    return a - b;
+  }
+
+  function displayTopic(el) {
+    postsContainer.append(el);
+  }
+
+  function getTopicElement(topic) {
+    const category = supportedTopicCategories[topic["category_id"]];
+    const posters = topic.posters.map(({ user_id: userId }) => userId);
 
     let postersAvatars = "";
     const displayPosterAvatar = (posterId) => {
@@ -88,62 +147,62 @@ function displayPostList() {
 
     const ifSummaryDisplay = () => {
       let summary = "";
-      if (post["has_summary"]) {
+      if (topic["has_summary"]) {
         summary = `
           <p class='post-summary'>
-            ${post.excerpt}
-            <a class='post-read-more' href='${FORUM_TOPIC}/${post.slug}' target='_blank'>read more</a>
+            ${topic.excerpt}
+            <a class='post-read-more' href='${FORUM_TOPIC}/${topic.slug}' target='_blank'>read more</a>
           </p>
           `;
       }
       return summary;
     };
 
-    let postRow = `
-      <tr> 
-        <td class="post-topic">
-          <span>
-            <a class='post-title'
-               href='${FORUM_TOPIC}/${post.slug}'
-               target='_blank'>
-              ${post.title}
-            </a>
-          </span>
-          <div class='post-category'>
-            <a 
-              class='${category.name}'
-              href='${FORUM_CATEGORY}/${category.name}'
+    let postRow = document.createElement("tr");
+    postRow.innerHTML = `
+      <td class="post-topic">
+        <span>
+          <a class='post-title'
+              href='${FORUM_TOPIC}/${topic.slug}'
               target='_blank'>
-              ${category.longName}
-            </a>
-          </div>
-          ${ifSummaryDisplay()}
-        </td>
-        <td class="post-posters">
-          <div class="postersAvatars">${postersAvatars}</div>
-        </td>
-        <td class="post-replies">${post.posts_count - 1}</td>
-        <td class="post-views">${formatLargeNumber(post.views)}</td>
-        <td class="post-activity">${formatDateDiff(
-          Date.now(),
-          post.bumped_at
-        )}</td>
-      </tr>`;
-    postsContainer.innerHTML += postRow;
+            ${topic.title}
+          </a>
+        </span>
+        <div class='post-category'>
+          <a 
+            class='${category.name}'
+            href='${FORUM_CATEGORY}/${category.name}'
+            target='_blank'>
+            ${category.longName}
+          </a>
+        </div>
+        ${ifSummaryDisplay()}
+      </td>
+      <td class="post-posters">
+        <div class="postersAvatars">${postersAvatars}</div>
+      </td>
+      <td class="post-replies">${topic.posts_count - 1}</td>
+      <td class="post-views">${formatLargeNumber(topic.views)}</td>
+      <td class="post-activity">${formatDateDiff(
+        Date.now(),
+        topic.bumped_at
+      )}</td>`;
+
+    return postRow;
   }
 }
 
 function displayCategories() {
   // create the buttons
   app.categories.forEach((value, key) => {
-    categoryBtns.innerHTML += `
-    <button
-         name="filter-button" 
-         value=${key}
-         class=${supportedTopicCategories[key].name}
-         >
-         ${supportedTopicCategories[key].longName} (${value})
-    </button>`;
+    const btn = document.createElement("button");
+    btn.name = "filter-button";
+    btn.value = `${key}`;
+    btn.className = `${supportedTopicCategories[key].name}`;
+    btn.textContent = `${supportedTopicCategories[key].longName} (${value})`;
+    btn.onclick = handleCategoryFilterClick;
+    // append to its parent node
+    categoryBtns.append(btn);
   });
 }
 
@@ -155,8 +214,24 @@ function displayFooter() {
 function activateSortBtns() {
   sortBtns.forEach((btn) => btn.addEventListener("click", handleSortBtnClick));
 
-  function handleSortBtnClick(e) {
-    console.log(e.target.value);
+  function handleSortBtnClick(event) {
+    const selectedCriterion = event.currentTarget.value;
+    // when the user clicks on the same button
+    if (app.filters.order.by === selectedCriterion) {
+      app.filters.order.dir += 1;
+      // when the user clicks on a different button
+    } else {
+      app.filters.order.by = selectedCriterion;
+      app.filters.order.dir = SORT_DIR_ASC;
+    }
+    // when the user has click on the same button for the 3rd time
+    if (app.filters.order.dir % 3 === 0) {
+      app.filters.order.by = SORT_BY_DEFAULT;
+      app.filters.order.dir = SORT_DIR_ASC;
+    }
+
+    // re-render the table with recently changed filter settings
+    displayTopics();
   }
 }
 
@@ -197,13 +272,14 @@ function setLoadingState() {
 }
 
 function parseForumData(data) {
-  app.topics = data.topic_list.topics.filter(
-    (post) => post["category_id"] in supportedTopicCategories
+  let topics = data.topic_list.topics.filter(
+    (topic) => topic["category_id"] in supportedTopicCategories
   );
 
   app.users = data.users;
+  app.topics = topics;
 
-  app.topics.forEach((topic) => {
+  topics.forEach((topic) => {
     if (app.categories.has(topic.category_id)) {
       app.categories.set(
         topic.category_id,
@@ -216,7 +292,16 @@ function parseForumData(data) {
   });
 }
 
-function handleFilterClick(event) {
+function handleCategoryFilterClick(event) {
+  const selectedCategory = Number(event.currentTarget.value);
+  const prevFilters = { ...app.filters };
   // when users clicks on the same filter button again
   // the filter is therefore cancelled
+  if (selectedCategory === app.filters.category) {
+    app.filters.category = DEFAULT;
+  } else {
+    app.filters.category = selectedCategory;
+  }
+  // re-render the table with recently changed filter settings
+  displayTopics(prevFilters);
 }
