@@ -19,10 +19,12 @@ const categoryBtns = document.getElementsByName("filter-button");
 const categoryBtnsContainer = document.getElementById("filter-btns");
 const title = document.querySelector("main > h1");
 
-const SORT_BY_DEFAULT = "bumped_at";
+const UPDATE_INTERVAL = 15000;
+const SORT_BY_DEFAULT = "";
+const SORT_DIR_DEFAULT = 0;
 const SORT_DIR_ASC = 1;
 const SORT_DIR_DESC = 2;
-const DEFAULT = null;
+const CATEGORY_FILTER_DEFAULT = "";
 
 // APP STATE
 const app = {
@@ -31,10 +33,10 @@ const app = {
   displayedTopics: [],
   categories: new Map(),
   filters: {
-    category: DEFAULT,
+    category: CATEGORY_FILTER_DEFAULT,
     order: {
       by: SORT_BY_DEFAULT,
-      dir: SORT_DIR_ASC,
+      dir: SORT_DIR_DEFAULT,
     },
   },
   isLoading: true,
@@ -44,7 +46,13 @@ const app = {
 // MAIN
 document.addEventListener("DOMContentLoaded", () => {
   // DOMContentLoaded event fires when the HTML document has been completely parsed
+  update();
+  // let's update the table every 15s
+  setInterval(update, UPDATE_INTERVAL);
+});
 
+// AUXILIARY FUNCTIONS
+function update() {
   setLoadingState();
   // Fetch FCC forum latest data
   fetch(FORUM_API)
@@ -68,15 +76,14 @@ document.addEventListener("DOMContentLoaded", () => {
     .finally(() => {
       app.isLoading = false;
     });
-});
+}
 
-// AUXILIARY FUNCTIONS
 function displayTopics(prevFilters = null) {
   // filter and sort topics
   let nextDisplayedTopics = [...app.displayedTopics];
 
   // FILTER
-  if (app.filters.category === DEFAULT) {
+  if (app.filters.category === CATEGORY_FILTER_DEFAULT) {
     // default view
     nextDisplayedTopics = [...app.topics];
   } else if (prevFilters && prevFilters.category !== app.filters.category) {
@@ -92,6 +99,7 @@ function displayTopics(prevFilters = null) {
   } else if (app.filters.order.dir === SORT_DIR_DESC) {
     nextDisplayedTopics.sort((a, b) => compareTopics(b, a));
   }
+  // Do nothing when sort order is in default state
 
   // REMOVE
   while (postsContainer.firstChild) {
@@ -130,23 +138,27 @@ function displayTopics(prevFilters = null) {
 
   function getTopicElement(topic) {
     const category = supportedTopicCategories[topic["category_id"]];
-    const posters = topic.posters.map(({ user_id: userId }) => userId);
-
     let postersAvatars = "";
-    const displayPosterAvatar = (posterId) => {
-      const poster = app.users.find((user) => user.id == posterId);
-      const avatarTemplate = poster["avatar_template"].replace("{size}", "25");
-      const posterAvatar = avatarTemplate.startsWith("/")
-        ? `${FORUM_AVATARS}/${avatarTemplate}`
-        : avatarTemplate;
-      postersAvatars += `
-          <a href="${FORUM_USER}/${poster.username}" target="_blank">
-            <img src="${posterAvatar}" title="${poster.username}" alt="Open ${poster.username}'s profile" width="25" height="25" />
-          </a>
-        `;
-    };
-    posters.forEach(displayPosterAvatar);
+    if (topic.posters) {
+      const posters = topic.posters.map(({ user_id: userId }) => userId);
 
+      const displayPosterAvatar = (posterId) => {
+        const poster = app.users.find((user) => user.id == posterId);
+        const avatarTemplate = poster["avatar_template"].replace(
+          "{size}",
+          "25"
+        );
+        const posterAvatar = avatarTemplate.startsWith("/")
+          ? `${FORUM_AVATARS}/${avatarTemplate}`
+          : avatarTemplate;
+        postersAvatars += `
+            <a href="${FORUM_USER}/${poster.username}" target="_blank">
+              <img src="${posterAvatar}" title="${poster.username}" alt="Open ${poster.username}'s profile" width="25" height="25" />
+            </a>
+          `;
+      };
+      posters.forEach(displayPosterAvatar);
+    }
     const ifSummaryDisplay = () => {
       let summary = "";
       if (topic["has_summary"]) {
@@ -195,6 +207,9 @@ function displayTopics(prevFilters = null) {
 }
 
 function displayCategories() {
+  while (categoryBtnsContainer.firstChild) {
+    categoryBtnsContainer.firstChild.remove();
+  }
   // create the buttons
   app.categories.forEach((value, key) => {
     const btn = document.createElement("button");
@@ -214,12 +229,11 @@ function displayFooter() {
 }
 
 function activateSortBtns() {
-  sortBtns.forEach((btn) => btn.addEventListener("click", handleSortBtnClick));
+  sortBtns.forEach((btn) => (btn.onclick = handleSortBtnClick));
 
   function handleSortBtnClick(event) {
     const btnEl = event.currentTarget;
     const selectedCriterion = btnEl.value;
-    let isReset = false;
     // when the user clicks on the same button
     if (app.filters.order.by === selectedCriterion) {
       app.filters.order.dir += 1;
@@ -228,11 +242,10 @@ function activateSortBtns() {
       app.filters.order.by = selectedCriterion;
       app.filters.order.dir = SORT_DIR_ASC;
     }
-    // when the user has click on the same button for the 3rd time
+    // when the user has clicked on the same button for the 3rd time
     if (app.filters.order.dir % 3 === 0) {
-      isReset = true;
       app.filters.order.by = SORT_BY_DEFAULT;
-      app.filters.order.dir = SORT_DIR_ASC;
+      app.filters.order.dir = SORT_DIR_DEFAULT;
     }
 
     // change active button style
@@ -241,18 +254,20 @@ function activateSortBtns() {
     displayTopics();
 
     function setActiveBtnStyle() {
-      sortBtns.forEach((btn) => btn.classList.remove("active"));
-      if (!isReset) {
-        btnEl.classList.toggle("active");
+      sortBtns.forEach((btn) => btn.classList.remove("asc", "desc"));
+      if (app.filters.order.dir === SORT_DIR_DEFAULT) {
+        btnEl.classList.className = "";
+      } else if (app.filters.order.dir === SORT_DIR_ASC) {
+        btnEl.classList.add("asc");
+      } else {
+        btnEl.classList.add("desc");
       }
     }
   }
 }
 
 function setLoadingState() {
-  // let's make sure this code does not execute
-  // when the state is not set to isLoading = true
-  if (!app.isLoading) return;
+  app.isLoading = true;
 
   let titleText = "Loading";
   let titleUpdateInterval = null;
@@ -286,14 +301,52 @@ function setLoadingState() {
 }
 
 function parseForumData(data) {
-  let topics = data.topic_list.topics.filter(
-    (topic) => topic["category_id"] in supportedTopicCategories
-  );
+  // map unique IDs
+  const currentTopics = new Map(app.topics.map((topic) => [topic.id, topic]));
+  const currentUsers = new Map(app.users.map((user) => [user.id, user]));
+  // place to store new topics
+  const updatedTopics = [];
+  const updatedUsers = [];
+  // let's loop through the new dataset
+  // if a topic is already in the table, update it
+  // if not, push it to new topics
+  for (let i = 0; i < data.topic_list.topics.length; i++) {
+    const topic = data.topic_list.topics[i];
+    // filter out topics we do not want to display in this app
+    if (!(topic["category_id"] in supportedTopicCategories)) {
+      continue;
+    }
 
-  app.users = data.users;
-  app.topics = topics;
+    if (currentTopics.has(topic.id)) {
+      currentTopics.delete(topic.id);
+    }
 
-  topics.forEach((topic) => {
+    updatedTopics.push(topic);
+  }
+  // add the remaining topics
+  for (const [id, topic] of currentTopics) {
+    updatedTopics.push(topic);
+  }
+
+  for (let i = 0; i < data.users.length; i++) {
+    const user = data.users[i];
+
+    if (currentUsers.has(user.id)) {
+      currentUsers.delete(user.id);
+    }
+
+    updatedUsers.push(user);
+  }
+  // add the remaining topics
+  for (const [id, user] of currentUsers) {
+    updatedTopics.push(user);
+  }
+
+  app.users = updatedUsers;
+  app.topics = updatedTopics;
+
+  app.categories.clear();
+  app.topics.forEach((topic) => {
     if (app.categories.has(topic.category_id)) {
       app.categories.set(
         topic.category_id,
@@ -313,7 +366,7 @@ function handleCategoryFilterClick(event) {
   // when users clicks on the same filter button again
   // the filter is therefore cancelled
   if (selectedCategory === app.filters.category) {
-    app.filters.category = DEFAULT;
+    app.filters.category = CATEGORY_FILTER_DEFAULT;
   } else {
     app.filters.category = selectedCategory;
   }
@@ -324,7 +377,7 @@ function handleCategoryFilterClick(event) {
 
   function setActiveBtnStyle() {
     categoryBtns.forEach((btn) => btn.classList.remove("active"));
-    if (app.filters.category !== DEFAULT) {
+    if (app.filters.category !== CATEGORY_FILTER_DEFAULT) {
       btnEl.classList.toggle("active");
     }
   }
