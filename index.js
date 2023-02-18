@@ -15,7 +15,8 @@ import {
 // GLOBALS
 const postsContainer = document.getElementById("posts-container");
 const sortBtns = document.getElementsByName("sort");
-const categoryBtns = document.getElementById("filter-btns");
+const categoryBtns = document.getElementsByName("filter-button");
+const categoryBtnsContainer = document.getElementById("filter-btns");
 const title = document.querySelector("main > h1");
 
 const SORT_BY_DEFAULT = "bumped_at";
@@ -23,6 +24,7 @@ const SORT_DIR_ASC = 1;
 const SORT_DIR_DESC = 2;
 const DEFAULT = null;
 
+// APP STATE
 const app = {
   topics: [],
   users: [],
@@ -202,7 +204,7 @@ function displayCategories() {
     btn.textContent = `${supportedTopicCategories[key].longName} (${value})`;
     btn.onclick = handleCategoryFilterClick;
     // append to its parent node
-    categoryBtns.append(btn);
+    categoryBtnsContainer.append(btn);
   });
 }
 
@@ -215,7 +217,9 @@ function activateSortBtns() {
   sortBtns.forEach((btn) => btn.addEventListener("click", handleSortBtnClick));
 
   function handleSortBtnClick(event) {
-    const selectedCriterion = event.currentTarget.value;
+    const btnEl = event.currentTarget;
+    const selectedCriterion = btnEl.value;
+    let isReset = false;
     // when the user clicks on the same button
     if (app.filters.order.by === selectedCriterion) {
       app.filters.order.dir += 1;
@@ -226,12 +230,22 @@ function activateSortBtns() {
     }
     // when the user has click on the same button for the 3rd time
     if (app.filters.order.dir % 3 === 0) {
+      isReset = true;
       app.filters.order.by = SORT_BY_DEFAULT;
       app.filters.order.dir = SORT_DIR_ASC;
     }
 
+    // change active button style
+    setActiveBtnStyle();
     // re-render the table with recently changed filter settings
     displayTopics();
+
+    function setActiveBtnStyle() {
+      sortBtns.forEach((btn) => btn.classList.remove("active"));
+      if (!isReset) {
+        btnEl.classList.toggle("active");
+      }
+    }
   }
 }
 
@@ -293,7 +307,8 @@ function parseForumData(data) {
 }
 
 function handleCategoryFilterClick(event) {
-  const selectedCategory = Number(event.currentTarget.value);
+  const btnEl = event.currentTarget;
+  const selectedCategory = Number(btnEl.value);
   const prevFilters = { ...app.filters };
   // when users clicks on the same filter button again
   // the filter is therefore cancelled
@@ -302,6 +317,15 @@ function handleCategoryFilterClick(event) {
   } else {
     app.filters.category = selectedCategory;
   }
+
+  setActiveBtnStyle();
   // re-render the table with recently changed filter settings
   displayTopics(prevFilters);
+
+  function setActiveBtnStyle() {
+    categoryBtns.forEach((btn) => btn.classList.remove("active"));
+    if (app.filters.category !== DEFAULT) {
+      btnEl.classList.toggle("active");
+    }
+  }
 }
