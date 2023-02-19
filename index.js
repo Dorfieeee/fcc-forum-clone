@@ -19,7 +19,7 @@ const categoryBtns = document.getElementsByName("filter-button");
 const categoryBtnsContainer = document.getElementById("filter-btns");
 const title = document.querySelector("main > h1");
 
-const UPDATE_INTERVAL = 15000;
+const UPDATE_INTERVAL = 30 * 1000;
 const SORT_BY_DEFAULT = "";
 const SORT_DIR_DEFAULT = 0;
 const SORT_DIR_ASC = 1;
@@ -47,35 +47,34 @@ const app = {
 document.addEventListener("DOMContentLoaded", () => {
   // DOMContentLoaded event fires when the HTML document has been completely parsed
   update();
-  // let's update the table every 15s
+  // let's update the table periodically
   setInterval(update, UPDATE_INTERVAL);
 });
 
 // AUXILIARY FUNCTIONS
-function update() {
+async function update() {
+  let response, forumData;
+
   setLoadingState();
-  // Fetch FCC forum latest data
-  fetch(FORUM_API)
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(response.statusText);
-      }
-      return response.json();
-    })
-    .then((data) => {
-      parseForumData(data);
-      displayTopics();
-      displayCategories();
-      displayFooter();
-      activateSortBtns();
-    })
-    .catch((error) => {
-      app.isError = true;
-      console.log(error);
-    })
-    .finally(() => {
-      app.isLoading = false;
-    });
+
+  try {
+    response = await fetch(FORUM_API);
+    if (!response.ok) {
+      throw new Error(response.statusText);
+    }
+    forumData = await response.json();
+  } catch (error) {
+    app.isError = true;
+    console.log(error);
+  } finally {
+    app.isLoading = false;
+  }
+
+  parseForumData(forumData);
+  displayTopics();
+  displayCategories();
+  displayFooter();
+  activateSortBtns();
 }
 
 function displayTopics(prevFilters = null) {
@@ -138,12 +137,16 @@ function displayTopics(prevFilters = null) {
 
   function getTopicElement(topic) {
     const category = supportedTopicCategories[topic["category_id"]];
+    if (!category) {
+      console.log(topic);
+    }
     let postersAvatars = "";
     if (topic.posters) {
       const posters = topic.posters.map(({ user_id: userId }) => userId);
 
       const displayPosterAvatar = (posterId) => {
         const poster = app.users.find((user) => user.id == posterId);
+        if (!poster) return;
         const avatarTemplate = poster["avatar_template"].replace(
           "{size}",
           "25"
@@ -337,9 +340,9 @@ function parseForumData(data) {
 
     updatedUsers.push(user);
   }
-  // add the remaining topics
+  // add the remaining users
   for (const [id, user] of currentUsers) {
-    updatedTopics.push(user);
+    updatedUsers.push(user);
   }
 
   app.users = updatedUsers;
