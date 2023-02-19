@@ -260,22 +260,25 @@ button[name="sort"]:not(.desc) i.fa-arrow-down-9-1 {
   padding: 0.15rem;
 }
 
-#users-list {
+#users-container {
   width: 85%;
   margin: 0 auto;
   margin-bottom: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
+}
+
+#users-list {
+  display: inline;
 }
 
 #users-list a {
   /* to make avatars overlap */
-  margin-right: calc(-0.25 * 25px);
+  margin-right: calc(-0.5 * 25px);
   transition: margin-right 1s ease-in-out;
+  transition-delay: 1s;
 }
 
 #users-list:hover a {
-  margin-right: calc(0.25 * 25px);
+  margin-right: 0.15rem;
 }
 
 #users-list img {

@@ -390,6 +390,8 @@ function displayUsers() {
     usersContainer.firstChild.remove();
   }
 
+  document.querySelector("#users-container > span").textContent = "Users: ";
+
   app.users
     .map(({ id }) => getUserAvatarComponent(id))
     .forEach((userAvatarComponent) => {
