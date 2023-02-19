@@ -17,6 +17,7 @@ const postsContainer = document.getElementById("posts-container");
 const sortBtns = document.getElementsByName("sort");
 const categoryBtns = document.getElementsByName("filter-button");
 const categoryBtnsContainer = document.getElementById("filter-btns");
+const usersContainer = document.getElementById("users-list");
 const title = document.querySelector("main > h1");
 
 const UPDATE_INTERVAL = 30 * 1000;
@@ -63,6 +64,11 @@ async function update() {
       throw new Error(response.statusText);
     }
     forumData = await response.json();
+    parseForumData(forumData);
+    displayTopics();
+    displayUsers();
+    displayCategories();
+    activateSortBtns();
   } catch (error) {
     app.isError = true;
     console.log(error);
@@ -70,11 +76,7 @@ async function update() {
     app.isLoading = false;
   }
 
-  parseForumData(forumData);
-  displayTopics();
-  displayCategories();
   displayFooter();
-  activateSortBtns();
 }
 
 function displayTopics(prevFilters = null) {
@@ -137,31 +139,10 @@ function displayTopics(prevFilters = null) {
 
   function getTopicElement(topic) {
     const category = supportedTopicCategories[topic["category_id"]];
-    if (!category) {
-      console.log(topic);
-    }
-    let postersAvatars = "";
-    if (topic.posters) {
-      const posters = topic.posters.map(({ user_id: userId }) => userId);
+    const postersAvatars = topic.posters
+      .map(({ user_id }) => getUserAvatarComponent(user_id))
+      .join("");
 
-      const displayPosterAvatar = (posterId) => {
-        const poster = app.users.find((user) => user.id == posterId);
-        if (!poster) return;
-        const avatarTemplate = poster["avatar_template"].replace(
-          "{size}",
-          "25"
-        );
-        const posterAvatar = avatarTemplate.startsWith("/")
-          ? `${FORUM_AVATARS}/${avatarTemplate}`
-          : avatarTemplate;
-        postersAvatars += `
-            <a href="${FORUM_USER}/${poster.username}" target="_blank">
-              <img src="${posterAvatar}" title="${poster.username}" alt="Open ${poster.username}'s profile" width="25" height="25" />
-            </a>
-          `;
-      };
-      posters.forEach(displayPosterAvatar);
-    }
     const ifSummaryDisplay = () => {
       let summary = "";
       if (topic["has_summary"]) {
@@ -384,4 +365,34 @@ function handleCategoryFilterClick(event) {
       btnEl.classList.toggle("active");
     }
   }
+}
+
+function getUserAvatarComponent(userId) {
+  const user = app.users.find((user) => user.id === userId);
+  if (!user) {
+    return "";
+  }
+
+  const avatarTemplate = user["avatar_template"].replace("{size}", "25");
+  const userAvatar = avatarTemplate.startsWith("/")
+    ? `${FORUM_AVATARS}/${avatarTemplate}`
+    : avatarTemplate;
+
+  return `
+      <a href="${FORUM_USER}/${user.username}" target="_blank">
+        <img src="${userAvatar}" title="${user.username}" alt="Open ${user.username}'s profile" width="25" height="25" />
+      </a>
+    `;
+}
+
+function displayUsers() {
+  while (usersContainer.firstChild) {
+    usersContainer.firstChild.remove();
+  }
+
+  app.users
+    .map(({ id }) => getUserAvatarComponent(id))
+    .forEach((userAvatarComponent) => {
+      usersContainer.innerHTML += userAvatarComponent;
+    });
 }

@@ -259,3 +259,27 @@ button[name="sort"]:not(.desc) i.fa-arrow-down-9-1 {
   min-width: 7rem;
   padding: 0.15rem;
 }
+
+#users-list {
+  width: 85%;
+  margin: 0 auto;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+#users-list a {
+  /* to make avatars overlap */
+  margin-right: calc(-0.25 * 25px);
+  transition: margin-right 1s ease-in-out;
+}
+
+#users-list:hover a {
+  margin-right: calc(0.25 * 25px);
+}
+
+#users-list img {
+  border: 1px solid var(--primary-color);
+  /* some images have transparent bg, such as .png */
+  background-color: var(--primary-background);
+}
